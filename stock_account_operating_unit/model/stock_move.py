@@ -73,6 +73,7 @@ class StockMove(models.Model):
             return rslt
         return res
 
+
     def _action_done(self, cancel_backorder=False):
         """
         Generate accounting moves if the product being moved is subject
@@ -83,6 +84,11 @@ class StockMove(models.Model):
         """
         res = super(StockMove, self)._action_done(cancel_backorder)
         for move in self:
+            if move.product_id.valuation == "real_time":
+                print ("move_line",move)
+
+        for move in self:
+            print ("move",move)
 
             if move.product_id.valuation == "real_time":
                 # Inter-operating unit moves do not accept to
@@ -100,8 +106,8 @@ class StockMove(models.Model):
                     ) = move._get_accounting_data_for_valuation()
 
                     # search from svl_id
-                    svl_id = self.env['stock.valuation.layer'].search([('stock_move_id', '=', move.id)])
-                    print ("svl_id",svl_id)
+                    svl_id = self.env['stock.valuation.layer'].search([('stock_move_id', '=', move.id),('product_id', '=', move.product_id.id)])
+ 
 
                     move_lines = move._prepare_account_move_line(
                         move.product_qty,
@@ -112,8 +118,8 @@ class StockMove(models.Model):
                         _("%s - OU Move") % move.product_id.display_name,
                     )
 
-                    #print ("move_lines",move_lines)
-
+                    
+                    print ("move_lines",move_lines)
                     #move_lines.update({'operating_unit_id':move.operating_unit_dest_id})
                     
                     ## update move_lines
@@ -121,20 +127,17 @@ class StockMove(models.Model):
                     for mvline in move_lines:
                         #print("mvline[2]",mvline[2])
                         new_line = mvline[2]
+                        new_line["balance"] = new_line["balance"] * new_line["quantity"]
+                        print ("new_line[balance]",new_line["balance"])
                         if new_line["balance"] <0 :
                             new_line["operating_unit_id"] = move.operating_unit_id.id
                         if new_line["balance"] > 0 :
                             new_line["operating_unit_id"] = move.operating_unit_dest_id.id
                         
                         new_move_lines.append((0, 0, new_line))
-                        #print ("mvline",mvline[2])
+                    
+                    print ("new_move_lines",new_move_lines)
 
-                        # if value < 0 and key == 'balance':
-                        #     move_lines['operating_unit_id'] = move.operating_unit_id
-                        # if value > 0 and key == 'balance':
-                        #     move_lines['operating_unit_id'] = move.operating_unit_dest_id
-                    # print ("new_move_lines",new_move_lines)
-                    # print ("move_lines[1].items()",move_lines.values())
                     am = (
                         self.env["account.move"]
                         .with_context(
@@ -152,7 +155,8 @@ class StockMove(models.Model):
                         .with_company(move.location_id.company_id.id)
                     )
                     am.action_post()
-            return res
+        #print ("",ghb)
+        return res
 
 
     # def _action_done(self, cancel_backorder=False):
