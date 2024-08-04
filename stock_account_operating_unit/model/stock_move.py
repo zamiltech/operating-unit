@@ -83,20 +83,23 @@ class StockMove(models.Model):
         destination locations belong to different operating units.
         """
         res = super(StockMove, self)._action_done(cancel_backorder)
-        for move in self:
-            if move.product_id.valuation == "real_time":
-                print ("move_line",move)
+        # for move in self:
+        #     if move.product_id.valuation == "real_time":
+        #         print ("move_line",move)
 
         for move in self:
-            print ("move",move)
+           # print ("move",move)
 
             if move.product_id.valuation == "real_time":
                 # Inter-operating unit moves do not accept to
                 # from/to non-internal location
+                #print ("",move.picking_type_id.code)
                 if (
                     move.location_id.company_id
                     and move.location_id.company_id == move.location_dest_id.company_id
                     and move.operating_unit_id != move.operating_unit_dest_id
+                    and move.picking_type_id.code == "internal"
+                    
                 ):
                     (
                         journal_id,
@@ -106,6 +109,7 @@ class StockMove(models.Model):
                     ) = move._get_accounting_data_for_valuation()
 
                     # search from svl_id
+                    print ("move.operating_unit_id", move.operating_unit_id , " <<< and move.operating_unit_dest_id = " , move.operating_unit_dest_id)
                     svl_id = self.env['stock.valuation.layer'].search([('stock_move_id', '=', move.id),('product_id', '=', move.product_id.id)])
  
 
@@ -119,7 +123,7 @@ class StockMove(models.Model):
                     )
 
                     
-                    print ("move_lines",move_lines)
+                    #print ("move_lines",move_lines)
                     #move_lines.update({'operating_unit_id':move.operating_unit_dest_id})
                     
                     ## update move_lines
@@ -128,7 +132,7 @@ class StockMove(models.Model):
                         #print("mvline[2]",mvline[2])
                         new_line = mvline[2]
                         new_line["balance"] = new_line["balance"] * new_line["quantity"]
-                        print ("new_line[balance]",new_line["balance"])
+                        #print ("new_line[balance]",new_line["balance"])
                         if new_line["balance"] <0 :
                             new_line["operating_unit_id"] = move.operating_unit_id.id
                         if new_line["balance"] > 0 :
@@ -136,7 +140,7 @@ class StockMove(models.Model):
                         
                         new_move_lines.append((0, 0, new_line))
                     
-                    print ("new_move_lines",new_move_lines)
+                    #print ("new_move_lines",new_move_lines)
 
                     am = (
                         self.env["account.move"]
