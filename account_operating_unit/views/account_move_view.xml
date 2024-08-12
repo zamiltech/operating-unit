@@ -65,34 +65,45 @@
                     options="{'no_create': True}"
                     groups="operating_unit.group_multi_operating_unit"
                 />
-                <field
-                    name="operating_unit_id"
-                    invisible="1"
-                    groups="!operating_unit.group_multi_operating_unit"
-                />
+                <field name="operating_unit_id" invisible="1" />
             </xpath>
             <field name="invoice_line_ids" position="attributes">
-                <attribute name="context">
-                    {'default_move_type': context.get('default_move_type'),
-                    'journal_id':
-                    journal_id, 'default_partner_id': commercial_partner_id,
-                    'default_currency_id': currency_id or company_currency_id,
-                    'operating_unit_id': operating_unit_id}
+                <attribute name="context" operation="update">
+                    {
+                        'operating_unit_id': operating_unit_id,
+                        'default_operating_unit_id': operating_unit_id
+                    }
                 </attribute>
             </field>
+            <!-- TODO: this needs a patch in the analytic distribution widget to pick up the OU from context
+            <xpath
+                expr="//field[@name='invoice_line_ids']/tree/field[@name='analytic_account_id']"
+                position="attributes"
+            >
+                <attribute name="domain">
+                    ['|', ('company_id', '=', False), ('company_id', '=',
+                    parent.company_id), '|', ('operating_unit_ids', '=',
+                    context.get('operating_unit_id', False)), ('operating_unit_ids',
+                    '=', False)]
+                </attribute>
+            </xpath>
+            <xpath
+                expr="//field[@name='invoice_line_ids']/form/sheet/group/field[@name='analytic_account_id']"
+                position="attributes"
+            >
+                <attribute name="domain">
+                    ['|', ('operating_unit_ids', '=', context.get('operating_unit_id',
+                    False)), ('operating_unit_ids', '=', False)]
+                </attribute>
+            </xpath>
+            -->
             <field name="line_ids" position="attributes">
-                <attribute name="context">
-                    {
-                    'default_move_type': context.get('default_move_type'),
-                    'line_ids': line_ids,
-                    'journal_id': journal_id,
-                    'default_partner_id': commercial_partner_id,
-                    'default_currency_id': currency_id or company_currency_id,
-                    'default_operating_unit_id': operating_unit_id}
+                <attribute name="context" operation="update">
+                    {'default_operating_unit_id': operating_unit_id}
                 </attribute>
             </field>
             <xpath
-                expr="//field[@name='line_ids']/tree//field[@name='account_id']"
+                expr="//field[@name='invoice_line_ids']/tree//field[@name='account_id']"
                 position="after"
             >
                 <field
@@ -102,6 +113,18 @@
                     groups="operating_unit.group_multi_operating_unit"
                 />
             </xpath>
+            <!-- TODO: this needs a patch in the analytic distribution widget to pick up the OU from context
+            <xpath
+                expr="//field[@name='line_ids']/tree/field[@name='analytic_account_id']"
+                position="attributes"
+            >
+                <attribute name="domain">
+                    ['|', ('company_id', '=', parent.company_id), ('company_id', '=',
+                    False), '|', ('operating_unit_ids', '=', operating_unit_id),
+                    ('operating_unit_ids', '=', False)]
+                </attribute>
+            </xpath>
+            -->
         </field>
     </record>
     <record id="view_invoice_tree" model="ir.ui.view">
@@ -135,6 +158,7 @@
                     string="Operating Unit"
                     name="operating_unit_grouped"
                     icon="terp-folder-orange"
+                    domain="[]"
                     groups="operating_unit.group_multi_operating_unit"
                     context="{'group_by':'operating_unit_id'}"
                 />

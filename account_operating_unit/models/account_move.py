@@ -6,56 +6,6 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 
-class AccountMoveLine(models.Model):
-    _inherit = "account.move.line"
-
-    operating_unit_id = fields.Many2one(
-        comodel_name="operating.unit",
-    )
-
-    @api.model_create_multi
-    def create(self, vals_list):
-        for vals in vals_list:
-            if vals.get("move_id", False):
-                move = self.env["account.move"].browse(vals["move_id"])
-                if move.operating_unit_id:
-                    vals["operating_unit_id"] = move.operating_unit_id.id
-        return super().create(vals_list)
-
-    @api.constrains("operating_unit_id", "company_id")
-    def _check_company_operating_unit(self):
-        for rec in self:
-            if (
-                rec.company_id
-                and rec.operating_unit_id
-                and rec.company_id != rec.operating_unit_id.company_id
-            ):
-                raise UserError(
-                    _(
-                        "Configuration error. The Company in the"
-                        " Move Line and in the Operating Unit must "
-                        "be the same."
-                    )
-                )
-
-    @api.constrains("operating_unit_id", "move_id")
-    def _check_move_operating_unit(self):
-        for rec in self:
-            if (
-                rec.move_id
-                and rec.move_id.operating_unit_id
-                and rec.operating_unit_id
-                and rec.move_id.operating_unit_id != rec.operating_unit_id
-            ):
-                raise UserError(
-                    _(
-                        "Configuration error. The Operating Unit in"
-                        " the Move Line and in the Move must be the"
-                        " same."
-                    )
-                )
-
-
 class AccountMove(models.Model):
     _inherit = "account.move"
 
@@ -75,14 +25,6 @@ class AccountMove(models.Model):
         readonly=True,
         states={"draft": [("readonly", False)]},
     )
-
-    @api.onchange("invoice_line_ids")
-    def _onchange_quick_edit_line_ids(self):
-        res = super()._onchange_quick_edit_line_ids()
-        if self.operating_unit_id:
-            for line in self.line_ids:
-                line.operating_unit_id = self.operating_unit_id
-        return res
 
     @api.onchange("operating_unit_id")
     def _onchange_operating_unit(self):
@@ -152,7 +94,9 @@ class AccountMove(models.Model):
     def _post(self, soft=True):
         ml_obj = self.env["account.move.line"]
         for move in self:
-            if not move.company_id.ou_is_self_balanced:
+            if not move.company_id.ou_is_self_balanced or self.env.context.get(
+                "inter_ou_balance_entry", False
+            ):
                 continue
 
             # If all move lines point to the same operating unit, there's no
@@ -172,18 +116,15 @@ class AccountMove(models.Model):
                     move, ou_id, ou_balances
                 )
                 if line_data:
-                    amls.append(ml_obj.with_context(wip=True).create(line_data))
+                    amls.append(
+                        ml_obj.with_context(check_move_validity=False).create(line_data)
+                    )
             if amls:
-                move.with_context(wip=False).write(
+                move.with_context(check_move_validity=True).write(
                     {"line_ids": [(4, aml.id) for aml in amls]}
                 )
 
         return super()._post(soft)
-
-    def _check_balanced(self, container):
-        if self.env.context.get("wip"):
-            return True
-        return super()._check_balanced(container)
 
     @api.constrains("line_ids")
     def _check_ou(self):
